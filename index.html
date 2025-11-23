@@ -1,11 +1,317 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Proassets Test Page</title>
-</head>
-<body style="background:#040514;color:white;font-family:sans-serif;text-align:center;padding-top:60px;">
-  <h1>Proassets Test Page 🎉</h1>
-  <p>If you can see this, GitHub → Netlify deployment will work.</p>
-</body>
-</html>
+<script>
+  // ===== basic state (localStorage) =====
+  function getUser() {
+    const raw = localStorage.getItem("proassets_user");
+    return raw ? JSON.parse(raw) : null;
+  }
+  function saveUser(u) {
+    localStorage.setItem("proassets_user", JSON.stringify(u));
+  }
+  function addOrder(serviceKey, label, amount, link) {
+    const u = getUser();
+    if (!u) return;
+    u.orders = u.orders || [];
+    u.orders.push({
+      serviceKey,
+      label,
+      amount,
+      link,
+      date: new Date().toLocaleString()
+    });
+    saveUser(u);
+  }
+
+  // ===== view switching =====
+  const views = {
+    home: document.getElementById("view-home"),
+    auth: document.getElementById("view-auth"),
+    services: document.getElementById("view-services"),
+    materials: document.getElementById("view-materials"),
+    dashboard: document.getElementById("view-dashboard"),
+  };
+
+  function showView(name) {
+    Object.values(views).forEach(v => v.classList.remove("active"));
+    if (views[name]) views[name].classList.add("active");
+    if (name === "dashboard") renderDashboard();
+    if (name === "services") updateIntroOfferBanner();
+  }
+
+  document.querySelectorAll("[data-view]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const v = btn.getAttribute("data-view");
+      if (v === "auth") showAuthMode("login");
+      showView(v);
+    });
+  });
+
+  // ===== auth =====
+  const authBtn = document.getElementById("authBtn");
+  const authTitle = document.getElementById("authTitle");
+  const nameLabel = document.getElementById("nameLabel");
+  const authName = document.getElementById("authName");
+  const authEmail = document.getElementById("authEmail");
+  const authPassword = document.getElementById("authPassword");
+  const authActionBtn = document.getElementById("authActionBtn");
+  const authToggleText = document.getElementById("authToggleText");
+  let authMode = "login";
+
+  function refreshAuthButton() {
+    const u = getUser();
+    authBtn.textContent = u ? "Logout" : "Login / Signup";
+  }
+
+  authBtn.addEventListener("click", () => {
+    const u = getUser();
+    if (u) {
+      if (confirm("Logout from this device?")) {
+        localStorage.removeItem("proassets_user");
+        refreshAuthButton();
+        showView("home");
+      }
+    } else {
+      showAuthMode("login");
+      showView("auth");
+    }
+  });
+
+  function showAuthMode(mode) {
+    authMode = mode;
+    if (mode === "login") {
+      authTitle.textContent = "Login";
+      nameLabel.style.display = "none";
+      authActionBtn.textContent = "Login";
+      authToggleText.innerHTML =
+        `New here? <a href="#" onclick="showAuthMode('signup');return false;">Create an account</a>`;
+    } else {
+      authTitle.textContent = "Signup";
+      nameLabel.style.display = "block";
+      authActionBtn.textContent = "Signup";
+      authToggleText.innerHTML =
+        `Already have an account? <a href="#" onclick="showAuthMode('login');return false;">Login here</a>`;
+    }
+  }
+
+  authActionBtn.addEventListener("click", () => {
+    const email = authEmail.value.trim();
+    const pass = authPassword.value.trim();
+    if (!email || !pass) {
+      alert("Please fill email and password");
+      return;
+    }
+    if (authMode === "signup") {
+      const name = authName.value.trim();
+      if (!name) {
+        alert("Please enter your name");
+        return;
+      }
+      const user = {
+        name,
+        email,
+        password: pass,
+        usedIntroOffer: false,
+        materialAccess: "none", // "starter" | "pro"
+        orders: []
+      };
+      saveUser(user);
+      alert("Account created. Intro offer will apply on your first order.");
+      refreshAuthButton();
+      showView("services");
+      updateIntroOfferBanner();
+    } else {
+      const u = getUser();
+      if (!u || u.email !== email || u.password !== pass) {
+        alert("Wrong email or password (stored only in this browser).");
+        return;
+      }
+      alert("Logged in.");
+      refreshAuthButton();
+      showView("services");
+      updateIntroOfferBanner();
+    }
+  });
+
+  // ===== intro offer banners =====
+  const introOfferBanner = document.getElementById("introOfferBanner");
+  const introUsedBanner = document.getElementById("introUsedBanner");
+
+  function updateIntroOfferBanner() {
+    const u = getUser();
+    if (!u) {
+      introOfferBanner.style.display = "none";
+      introUsedBanner.style.display = "none";
+      return;
+    }
+    if (u.usedIntroOffer) {
+      introOfferBanner.style.display = "none";
+      introUsedBanner.style.display = "block";
+    } else {
+      introOfferBanner.style.display = "block";
+      introUsedBanner.style.display = "none";
+    }
+  }
+
+  // ===== payment links (your real Razorpay links) =====
+  const PAYMENT_LINKS = {
+    reel: {
+      first:   "https://rzp.io/rzp/L8FohH7",   // ₹1
+      regular: "https://rzp.io/rzp/F9HZQLM"   // ₹250
+    },
+    shorts: {
+      first:   "https://rzp.io/rzp/L8FohH7",   // ₹1
+      regular: "https://rzp.io/rzp/JBGijGS"   // ₹350
+    },
+    yt: {
+      first:   "https://rzp.io/rzp/vm2mAc7",   // ₹500
+      regular: "https://rzp.io/rzp/g67L9Qi"   // ₹1000
+    },
+    doc: {
+      first:   "https://rzp.io/rzp/W9MyHwfd",  // ₹775
+      regular: "https://rzp.io/rzp/fPcjaEW"   // ₹1550
+    },
+    materials_basic: {
+      regular: "https://rzp.io/rzp/R27B1LA"   // ₹299
+    },
+    materials_pro: {
+      regular: "https://rzp.io/rzp/Ldwv6PC"   // ₹499
+    },
+    ai_normal: {
+      regular: "https://rzp.io/rzp/Zy1QwH7n"  // ₹999
+    },
+    ai_premium: {
+      regular: "https://rzp.io/rzp/LgnWHfj"   // ₹1999
+    },
+    web_basic: {
+      regular: "https://rzp.io/rzp/6NyF4vLa"  // ₹2999
+    },
+    web_standard: {
+      regular: "https://rzp.io/rzp/2ZsXg2gs"  // ₹5999
+    },
+    web_premium: {
+      regular: "https://rzp.io/rzp/d43MOob"   // ₹9999
+    }
+  };
+
+  const SERVICE_META = {
+    reel: { label: "Reel Edit",           regular: 250,  first: 1 },
+    shorts: { label: "Shorts Edit",       regular: 350,  first: 1 },
+    yt: { label: "YouTube Video Edit",    regular: 1000, first: 500 },
+    doc: { label: "Documentary Edit",     regular: 1550, first: 775 },
+    materials_basic: { label: "Materials Starter", regular: 299 },
+    materials_pro: { label: "Materials Pro",      regular: 499 },
+    ai_normal: { label: "AI Assistant",          regular: 999 },
+    ai_premium:{ label: "AI Calling Agent",      regular: 1999 },
+    web_basic: { label: "Website Basic",         regular: 2999 },
+    web_standard:{ label: "Website Standard",    regular: 5999 },
+    web_premium:{ label: "Website Premium",      regular: 9999 },
+  };
+
+  // ===== payment handler =====
+  function pay(serviceKey) {
+    const u = getUser();
+    if (!u) {
+      alert("Please signup / login first.");
+      showAuthMode("signup");
+      showView("auth");
+      return;
+    }
+
+    const meta = SERVICE_META[serviceKey];
+    const links = PAYMENT_LINKS[serviceKey];
+    if (!meta || !links) {
+      alert("Service not configured.");
+      return;
+    }
+
+    let url = links.regular;
+    let amount = meta.regular;
+    let usedIntroThisTime = false;
+
+    const isEditing = ["reel","shorts","yt","doc"].includes(serviceKey);
+    if (!u.usedIntroOffer && isEditing && links.first && meta.first != null) {
+      url = links.first;
+      amount = meta.first;
+      usedIntroThisTime = true;
+    }
+
+    addOrder(serviceKey, meta.label, amount, url);
+    if (usedIntroThisTime) {
+      u.usedIntroOffer = true;
+      saveUser(u);
+    }
+    updateIntroOfferBanner();
+
+    alert("You will be redirected to Razorpay payment page. After paying, we'll see it in Razorpay dashboard and contact you.");
+    window.open(url, "_blank");
+  }
+
+  // ===== material subscription logic =====
+  function subscribeMaterial(type) {
+    const u = getUser();
+    if (!u) {
+      alert("Please login first.");
+      showAuthMode("login");
+      showView("auth");
+      return;
+    }
+
+    if (type === "starter") {
+      pay("materials_basic");
+      u.materialAccess = "starter";
+    } else if (type === "pro") {
+      pay("materials_pro");
+      u.materialAccess = "pro";
+    }
+    saveUser(u);
+    alert("Once payment is done, your assets will be available in Dashboard → My Asset Downloads.");
+    renderDashboard();
+  }
+
+  // ===== dashboard =====
+  const dashWelcome  = document.getElementById("dashWelcome");
+  const dashContent  = document.getElementById("dashContent");
+  const dashEmail    = document.getElementById("dashEmail");
+  const dashOffer    = document.getElementById("dashOffer");
+  const dashMaterial = document.getElementById("dashMaterial");
+  const orderList    = document.getElementById("orderList");
+  const assetList    = document.getElementById("assetList");
+
+  function renderDashboard() {
+    const u = getUser();
+    if (!u) {
+      dashWelcome.textContent = "Please login to view dashboard.";
+      dashContent.style.display = "none";
+      return;
+    }
+    dashWelcome.textContent = "Welcome, " + (u.name || u.email);
+    dashContent.style.display = "block";
+
+    dashEmail.textContent = u.email;
+    dashOffer.textContent = u.usedIntroOffer ? "Used" : "Available";
+    dashMaterial.textContent =
+      u.materialAccess === "starter" ? "Starter Pack" :
+      u.materialAccess === "pro"     ? "Pro Pack"     :
+                                       "None";
+
+    orderList.innerHTML = "";
+    (u.orders || []).forEach(o => {
+      const li = document.createElement("li");
+      li.textContent = `${o.label} – ₹${o.amount} – ${o.date}`;
+      orderList.appendChild(li);
+    });
+
+    assetList.innerHTML = "";
+    // Free pack always
+    assetList.innerHTML += `<li><a href="REPLACE_FREE_DRIVE_LINK" target="_blank">Free Essentials Pack</a></li>`;
+    if (u.materialAccess === "starter" || u.materialAccess === "pro") {
+      assetList.innerHTML += `<li><a href="REPLACE_STARTER_DRIVE_LINK" target="_blank">Starter Pack Assets</a></li>`;
+    }
+    if (u.materialAccess === "pro") {
+      assetList.innerHTML += `<li><a href="REPLACE_PRO_DRIVE_LINK" target="_blank">Pro Pack Assets</a></li>`;
+    }
+  }
+
+  // ==== init ====
+  refreshAuthButton();
+  updateIntroOfferBanner();
+</script>
