@@ -26,6 +26,7 @@
       backdrop-filter: blur(18px);
     }
     .logo { font-weight: 700; font-size: 1rem; }
+
     .nav-buttons button {
       background: transparent;
       border: none;
@@ -45,18 +46,10 @@
     .view { display: none; }
     .view.active { display: block; }
 
-    .hero {
-      text-align: center;
-      margin-bottom: 2rem;
-    }
-    .hero h1 {
-      font-size: 2rem;
-      margin-bottom: 0.4rem;
-    }
-    .hero p {
-      opacity: 0.85;
-      margin-bottom: 0.8rem;
-    }
+    .hero { text-align: center; margin-bottom: 2rem; }
+    .hero h1 { font-size: 2rem; margin-bottom: 0.4rem; }
+    .hero p { opacity: 0.85; margin-bottom: 0.8rem; }
+
     .badge {
       display: inline-flex;
       align-items: center;
@@ -239,7 +232,7 @@
       </label>
       <button class="btn" id="authActionBtn">Login</button>
       <p class="small" id="authToggleText"></p>
-      <p class="small muted">Login is stored only in this browser using localStorage (simple demo).</p>
+      <p class="small muted">Login is stored in this browser and synced to Supabase.</p>
     </div>
   </section>
 
@@ -247,13 +240,14 @@
   <section id="view-services" class="view">
     <h2 class="section-title">Services & Pricing</h2>
     <p class="small">
-      If you are logged in and intro offer not used yet, Reel & Shorts will open ₹1 links, YouTube/Doc will open 50% OFF links.
+      If you are logged in and intro offer not used yet, Reel & Shorts will be ₹1,
+      and YouTube/Doc will be 50% OFF on your first order.
     </p>
     <div id="introOfferBanner" class="alert" style="display:none;">
-      🎁 Intro offer available on your next order from this device.
+      🎁 Intro offer available on your next order.
     </div>
     <div id="introUsedBanner" class="alert danger" style="display:none;">
-      Intro offer already used on this device. Regular prices apply.
+      Intro offer already used. Regular prices apply.
     </div>
 
     <h3 class="section-title">Video Editing</h3>
@@ -326,7 +320,7 @@
   <!-- MATERIALS -->
   <section id="view-materials" class="view">
     <h2 class="section-title">Material for Editing – Assets</h2>
-    <p class="small">Free pack + subscription packs. Download links are coming soon.</p>
+    <p class="small">Free pack + subscription packs. After subscribing, asset links will appear in your Dashboard.</p>
     <div class="grid grid-2">
       <div class="card">
         <h3>Free Essentials Pack</h3>
@@ -337,7 +331,8 @@
           <li>5 simple transitions</li>
           <li>5 lower-third PNGs</li>
         </ul>
-        <button class="btn secondary" onclick="alert('Free pack download link coming soon.')">
+        <!-- TODO: replace this with your real Drive link -->
+        <button class="btn secondary" onclick="window.open('https://example.com/free-pack','_blank')">
           Download Free Pack
         </button>
       </div>
@@ -378,15 +373,15 @@
         <p class="small"><b>Intro offer status:</b> <span id="dashOffer"></span></p>
         <p class="small"><b>Material Subscription:</b> <span id="dashMaterial"></span></p>
 
-        <h3 class="section-title">My Orders (local to this device)</h3>
+        <h3 class="section-title">My Orders (local copy)</h3>
         <ul id="orderList"></ul>
 
         <h3 class="section-title">My Asset Downloads</h3>
         <ul id="assetList"></ul>
 
         <p class="small muted">
-          This dashboard is saved only in this browser using localStorage.
-          Real payment records are in your Razorpay dashboard.
+          Orders are also saved in Supabase with your email.
+          Check Razorpay dashboard for full payment details.
         </p>
       </div>
     </div>
@@ -399,8 +394,61 @@
   <p>© 2025 Proassets Production. All rights reserved.</p>
 </footer>
 
+<!-- Supabase + Razorpay scripts -->
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
 <script>
-  // ===== basic state (localStorage) =====
+  // ===== YOUR KEYS (safe for frontend) =====
+  const SUPABASE_URL = "https://xmiehetlqkfdsflljwfe.supabase.co";
+  const SUPABASE_ANON_KEY =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhtaWVoZXRscWtmZHNmbGxqd2ZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM5MTc5NjEsImV4cCI6MjA3OTQ5Mzk2MX0.dY_MBZ6wxv-GKc-DddGI8MdZ7CHfISFGhzGClIiRj-g";
+  const RAZORPAY_KEY_ID = "rzp_live_Rho6yUEhHpGMie";
+
+  // ===== Supabase init =====
+  const supabaseClient = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY
+  );
+
+  async function sendUserToSupabase(user) {
+    try {
+      const result = await supabaseClient
+        .from("customers")
+        .upsert(
+          {
+            email: user.email,
+            name: user.name,
+            used_intro_offer: user.usedIntroOffer,
+            material_access: user.materialAccess
+          },
+          { onConflict: "email" }
+        );
+      if (result.error) console.error("Supabase user error:", result.error);
+    } catch (e) {
+      console.error("Supabase user exception:", e);
+    }
+  }
+
+  async function sendOrderToSupabase(user, serviceKey, label, amount, paymentId) {
+    if (!user) return;
+    try {
+      const result = await supabaseClient
+        .from("orders")
+        .insert({
+          email: user.email,
+          service_key: serviceKey,
+          label: label,
+          amount: amount,
+          razorpay_payment_id: paymentId
+        });
+      if (result.error) console.error("Supabase order error:", result.error);
+    } catch (e) {
+      console.error("Supabase order exception:", e);
+    }
+  }
+
+  // ===== local user state (browser) =====
   function getUser() {
     const raw = localStorage.getItem("proassets_user");
     return raw ? JSON.parse(raw) : null;
@@ -408,15 +456,15 @@
   function saveUser(u) {
     localStorage.setItem("proassets_user", JSON.stringify(u));
   }
-  function addOrder(serviceKey, label, amount, link) {
+  function addOrderLocal(serviceKey, label, amount, paymentId) {
     const u = getUser();
     if (!u) return;
-    u.orders = u.orders || [];
+    if (!u.orders) u.orders = [];
     u.orders.push({
-      serviceKey,
-      label,
-      amount,
-      link,
+      serviceKey: serviceKey,
+      label: label,
+      amount: amount,
+      paymentId: paymentId,
       date: new Date().toLocaleString()
     });
     saveUser(u);
@@ -428,42 +476,47 @@
     auth: document.getElementById("view-auth"),
     services: document.getElementById("view-services"),
     materials: document.getElementById("view-materials"),
-    dashboard: document.getElementById("view-dashboard"),
+    dashboard: document.getElementById("view-dashboard")
   };
 
   function showView(name) {
-    Object.values(views).forEach(v => v.classList.remove("active"));
+    for (var key in views) {
+      if (views.hasOwnProperty(key)) {
+        views[key].classList.remove("active");
+      }
+    }
     if (views[name]) views[name].classList.add("active");
     if (name === "dashboard") renderDashboard();
     if (name === "services") updateIntroOfferBanner();
   }
 
-  document.querySelectorAll("[data-view]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const v = btn.getAttribute("data-view");
+  var navButtons = document.querySelectorAll("[data-view]");
+  for (var i = 0; i < navButtons.length; i++) {
+    navButtons[i].addEventListener("click", function () {
+      var v = this.getAttribute("data-view");
       if (v === "auth") showAuthMode("login");
       showView(v);
     });
-  });
+  }
 
   // ===== auth =====
-  const authBtn = document.getElementById("authBtn");
-  const authTitle = document.getElementById("authTitle");
-  const nameLabel = document.getElementById("nameLabel");
-  const authName = document.getElementById("authName");
-  const authEmail = document.getElementById("authEmail");
-  const authPassword = document.getElementById("authPassword");
-  const authActionBtn = document.getElementById("authActionBtn");
-  const authToggleText = document.getElementById("authToggleText");
-  let authMode = "login";
+  var authBtn = document.getElementById("authBtn");
+  var authTitle = document.getElementById("authTitle");
+  var nameLabel = document.getElementById("nameLabel");
+  var authName = document.getElementById("authName");
+  var authEmail = document.getElementById("authEmail");
+  var authPassword = document.getElementById("authPassword");
+  var authActionBtn = document.getElementById("authActionBtn");
+  var authToggleText = document.getElementById("authToggleText");
+  var authMode = "login";
 
   function refreshAuthButton() {
-    const u = getUser();
+    var u = getUser();
     authBtn.textContent = u ? "Logout" : "Login / Signup";
   }
 
-  authBtn.addEventListener("click", () => {
-    const u = getUser();
+  authBtn.addEventListener("click", function () {
+    var u = getUser();
     if (u) {
       if (confirm("Logout from this device?")) {
         localStorage.removeItem("proassets_user");
@@ -483,44 +536,45 @@
       nameLabel.style.display = "none";
       authActionBtn.textContent = "Login";
       authToggleText.innerHTML =
-        `New here? <a href="#" onclick="showAuthMode('signup');return false;">Create an account</a>`;
+        'New here? <a href="#" onclick="showAuthMode(\'signup\');return false;">Create an account</a>';
     } else {
       authTitle.textContent = "Signup";
       nameLabel.style.display = "block";
       authActionBtn.textContent = "Signup";
       authToggleText.innerHTML =
-        `Already have an account? <a href="#" onclick="showAuthMode('login');return false;">Login here</a>`;
+        'Already have an account? <a href="#" onclick="showAuthMode(\'login\');return false;">Login here</a>';
     }
   }
 
-  authActionBtn.addEventListener("click", () => {
-    const email = authEmail.value.trim();
-    const pass = authPassword.value.trim();
+  authActionBtn.addEventListener("click", function () {
+    var email = authEmail.value.trim();
+    var pass = authPassword.value.trim();
     if (!email || !pass) {
       alert("Please fill email and password");
       return;
     }
     if (authMode === "signup") {
-      const name = authName.value.trim();
+      var name = authName.value.trim();
       if (!name) {
         alert("Please enter your name");
         return;
       }
-      const user = {
-        name,
-        email,
+      var user = {
+        name: name,
+        email: email,
         password: pass,
         usedIntroOffer: false,
-        materialAccess: "none", // "starter" | "pro"
+        materialAccess: "none",
         orders: []
       };
       saveUser(user);
+      sendUserToSupabase(user);
       alert("Account created. Intro offer will apply on your first order.");
       refreshAuthButton();
       showView("services");
       updateIntroOfferBanner();
     } else {
-      const u = getUser();
+      var u = getUser();
       if (!u || u.email !== email || u.password !== pass) {
         alert("Wrong email or password (stored only in this browser).");
         return;
@@ -533,11 +587,11 @@
   });
 
   // ===== intro offer banners =====
-  const introOfferBanner = document.getElementById("introOfferBanner");
-  const introUsedBanner = document.getElementById("introUsedBanner");
+  var introOfferBanner = document.getElementById("introOfferBanner");
+  var introUsedBanner = document.getElementById("introUsedBanner");
 
   function updateIntroOfferBanner() {
-    const u = getUser();
+    var u = getUser();
     if (!u) {
       introOfferBanner.style.display = "none";
       introUsedBanner.style.display = "none";
@@ -552,64 +606,24 @@
     }
   }
 
-  // ===== payment links (your Razorpay links) =====
-  const PAYMENT_LINKS = {
-    reel: {
-      first:   "https://rzp.io/rzp/L8FohH7",   // ₹1
-      regular: "https://rzp.io/rzp/F9HZQLM"   // ₹250
-    },
-    shorts: {
-      first:   "https://rzp.io/rzp/L8FohH7",   // ₹1
-      regular: "https://rzp.io/rzp/JBGijGS"   // ₹350
-    },
-    yt: {
-      first:   "https://rzp.io/rzp/vm2mAc7",   // ₹500
-      regular: "https://rzp.io/rzp/g67L9Qi"   // ₹1000
-    },
-    doc: {
-      first:   "https://rzp.io/rzp/W9MyHwfd",  // ₹775
-      regular: "https://rzp.io/rzp/fPcjaEW"   // ₹1550
-    },
-    materials_basic: {
-      regular: "https://rzp.io/rzp/R27B1LA"   // ₹299
-    },
-    materials_pro: {
-      regular: "https://rzp.io/rzp/Ldwv6PC"   // ₹499
-    },
-    ai_normal: {
-      regular: "https://rzp.io/rzp/Zy1QwH7n"  // ₹999
-    },
-    ai_premium: {
-      regular: "https://rzp.io/rzp/LgnWHfj"   // ₹1999
-    },
-    web_basic: {
-      regular: "https://rzp.io/rzp/6NyF4vLa"  // ₹2999
-    },
-    web_standard: {
-      regular: "https://rzp.io/rzp/2ZsXg2gs"  // ₹5999
-    },
-    web_premium: {
-      regular: "https://rzp.io/rzp/d43MOob"   // ₹9999
-    }
+  // ===== services meta =====
+  var SERVICE_META = {
+    reel:            { label: "Reel Edit",            regular: 250,  first: 1,    category: "editing" },
+    shorts:          { label: "Shorts Edit",          regular: 350,  first: 1,    category: "editing" },
+    yt:              { label: "YouTube Video Edit",   regular: 1000, first: 500,  category: "editing" },
+    doc:             { label: "Documentary Edit",     regular: 1550, first: 775,  category: "editing" },
+    materials_basic: { label: "Materials Starter",    regular: 299,               category: "materials" },
+    materials_pro:   { label: "Materials Pro",        regular: 499,               category: "materials" },
+    ai_normal:       { label: "AI Assistant",         regular: 999,               category: "ai" },
+    ai_premium:      { label: "AI Calling Agent",     regular: 1999,              category: "ai" },
+    web_basic:       { label: "Website Basic",        regular: 2999,              category: "web" },
+    web_standard:    { label: "Website Standard",     regular: 5999,              category: "web" },
+    web_premium:     { label: "Website Premium",      regular: 9999,              category: "web" }
   };
 
-  const SERVICE_META = {
-    reel: { label: "Reel Edit",           regular: 250,  first: 1 },
-    shorts: { label: "Shorts Edit",       regular: 350,  first: 1 },
-    yt: { label: "YouTube Video Edit",    regular: 1000, first: 500 },
-    doc: { label: "Documentary Edit",     regular: 1550, first: 775 },
-    materials_basic: { label: "Materials Starter", regular: 299 },
-    materials_pro: { label: "Materials Pro",      regular: 499 },
-    ai_normal: { label: "AI Assistant",          regular: 999 },
-    ai_premium:{ label: "AI Calling Agent",      regular: 1999 },
-    web_basic: { label: "Website Basic",         regular: 2999 },
-    web_standard:{ label: "Website Standard",    regular: 5999 },
-    web_premium:{ label: "Website Premium",      regular: 9999 },
-  };
-
-  // ===== payment handler =====
+  // ===== Razorpay payment =====
   function pay(serviceKey) {
-    const u = getUser();
+    var u = getUser();
     if (!u) {
       alert("Please signup / login first.");
       showAuthMode("signup");
@@ -617,15 +631,131 @@
       return;
     }
 
-    const meta = SERVICE_META[serviceKey];
-    const links = PAYMENT_LINKS[serviceKey];
-    if (!meta || !links) {
+    var meta = SERVICE_META[serviceKey];
+    if (!meta) {
       alert("Service not configured.");
       return;
     }
 
-    let url = links.regular;
-    let amount = meta.regular;
-    let usedIntroThisTime = false;
+    var amount = meta.regular;
+    var usedIntroThisTime = false;
 
-  
+    var isEditing = meta.category === "editing";
+    if (!u.usedIntroOffer && isEditing && meta.first != null) {
+      amount = meta.first;
+      usedIntroThisTime = true;
+    }
+
+    var options = {
+      key: RAZORPAY_KEY_ID,
+      amount: amount * 100,
+      currency: "INR",
+      name: "Proassets Production",
+      description: meta.label,
+      handler: function (response) {
+        var paymentId = response.razorpay_payment_id;
+        addOrderLocal(serviceKey, meta.label, amount, paymentId);
+        sendOrderToSupabase(u, serviceKey, meta.label, amount, paymentId);
+        if (usedIntroThisTime) {
+          u.usedIntroOffer = true;
+          saveUser(u);
+          sendUserToSupabase(u);
+        }
+        updateIntroOfferBanner();
+        alert("Payment successful! ID: " + paymentId + ". We'll contact you by email/WhatsApp.");
+      },
+      prefill: {
+        name: u.name || "",
+        email: u.email || ""
+      },
+      notes: {
+        service_key: serviceKey
+      },
+      theme: { color: "#7c3aed" }
+    };
+
+    var rzp = new Razorpay(options);
+    rzp.on("payment.failed", function (resp) {
+      console.error(resp.error);
+      alert("Payment failed. Please try again or contact support.");
+    });
+    rzp.open();
+  }
+
+  // ===== material subscription =====
+  function subscribeMaterial(type) {
+    var u = getUser();
+    if (!u) {
+      alert("Please login first.");
+      showAuthMode("login");
+      showView("auth");
+      return;
+    }
+    if (type === "starter") {
+      pay("materials_basic");
+      u.materialAccess = "starter";
+    } else if (type === "pro") {
+      pay("materials_pro");
+      u.materialAccess = "pro";
+    }
+    saveUser(u);
+    sendUserToSupabase(u);
+    renderDashboard();
+  }
+
+  // ===== dashboard =====
+  var dashWelcome  = document.getElementById("dashWelcome");
+  var dashContent  = document.getElementById("dashContent");
+  var dashEmail    = document.getElementById("dashEmail");
+  var dashOffer    = document.getElementById("dashOffer");
+  var dashMaterial = document.getElementById("dashMaterial");
+  var orderList    = document.getElementById("orderList");
+  var assetList    = document.getElementById("assetList");
+
+  function renderDashboard() {
+    var u = getUser();
+    if (!u) {
+      dashWelcome.textContent = "Please login to view dashboard.";
+      dashContent.style.display = "none";
+      return;
+    }
+    dashWelcome.textContent = "Welcome, " + (u.name || u.email);
+    dashContent.style.display = "block";
+
+    dashEmail.textContent = u.email;
+    dashOffer.textContent = u.usedIntroOffer ? "Used" : "Available";
+
+    if (u.materialAccess === "starter") {
+      dashMaterial.textContent = "Starter Pack";
+    } else if (u.materialAccess === "pro") {
+      dashMaterial.textContent = "Pro Pack";
+    } else {
+      dashMaterial.textContent = "None";
+    }
+
+    orderList.innerHTML = "";
+    var orders = u.orders || [];
+    for (var i = 0; i < orders.length; i++) {
+      var o = orders[i];
+      var li = document.createElement("li");
+      li.textContent = o.label + " – ₹" + o.amount + " – " + o.date + " – " + (o.paymentId || "");
+      orderList.appendChild(li);
+    }
+
+    assetList.innerHTML = "";
+    assetList.innerHTML +=
+      "<li><a href='https://example.com/free-pack' target='_blank'>Free Essentials Pack</a></li>";
+    if (u.materialAccess === "starter" || u.materialAccess === "pro") {
+      assetList.innerHTML += "<li>Starter Pack assets – link will be shared on email/WhatsApp.</li>";
+    }
+    if (u.materialAccess === "pro") {
+      assetList.innerHTML += "<li>Pro Pack assets – link will be shared on email/WhatsApp.</li>";
+    }
+  }
+
+  // ===== init =====
+  refreshAuthButton();
+  updateIntroOfferBanner();
+</script>
+</body>
+</html>
