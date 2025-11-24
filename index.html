@@ -608,8 +608,8 @@
 
   // ===== services meta =====
   var SERVICE_META = {
-    reel:            { label: "Reel Edit",            regular: 250,  first: 1,    category: "editing" },
-    shorts:          { label: "Shorts Edit",          regular: 350,  first: 1,    category: "editing" },
+    reel:            { label: "Reel Edit",            regular: 250,  first: 10,    category: "editing" },
+    shorts:          { label: "Shorts Edit",          regular: 350,  first: 10,    category: "editing" },
     yt:              { label: "YouTube Video Edit",   regular: 1000, first: 500,  category: "editing" },
     doc:             { label: "Documentary Edit",     regular: 1550, first: 775,  category: "editing" },
     materials_basic: { label: "Materials Starter",    regular: 299,               category: "materials" },
@@ -675,11 +675,25 @@
     };
 
     var rzp = new Razorpay(options);
-    rzp.on("payment.failed", function (resp) {
-      console.error(resp.error);
-      alert("Payment failed. Please try again or contact support.");
-    });
-    rzp.open();
+rzp.on("payment.failed", function (resp) {
+  console.error("Razorpay payment failed:", resp);
+
+  var msg = "Payment failed.\n\n";
+
+  if (resp.error && resp.error.description) {
+    msg += "Reason: " + resp.error.description + "\n";
+  }
+  if (resp.error && resp.error.code) {
+    msg += "Code: " + resp.error.code + "\n";
+  }
+  if (resp.error && resp.error.reason) {
+    msg += "Details: " + resp.error.reason + "\n";
+  }
+
+  msg += "\nIf money is debited, it will be auto-refunded by Razorpay.";
+  alert(msg);
+});
+rzp.open();
   }
 
   // ===== material subscription =====
